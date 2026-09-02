@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 图片生成工具</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #1a1d27;
+    --panel-2: #222634;
+    --border: #2e3346;
+    --text: #e8eaf0;
+    --text-dim: #9aa1b5;
+    --accent: #6c5ce7;
+    --accent-2: #8b7cf6;
+    --danger: #e5484d;
+    --ok: #2ecc71;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  /* 登录界面 */
+  #login-screen {
+    width: 100%;
+    max-width: 460px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 36px;
+    text-align: center;
+  }
+  #login-screen h1 { font-size: 24px; margin-bottom: 6px; }
+  #login-screen p { color: var(--text-dim); font-size: 14px; margin-bottom: 28px; }
+  #login-screen label {
+    display: block; text-align: left; font-size: 13px;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  #login-screen input {
+    width: 100%; padding: 13px 14px; font-size: 14px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    outline: none; transition: border .15s;
+  }
+  #login-screen input:focus { border-color: var(--accent); }
+  button {
+    cursor: pointer; border: none; border-radius: var(--radius);
+    font-size: 15px; font-weight: 600; transition: .15s;
+  }
+  .primary-btn {
+    width: 100%; margin-top: 20px; padding: 13px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+  .primary-btn:hover { filter: brightness(1.08); }
+  .primary-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* 主界面 */
+  #app-screen { display: none; width: 100%; max-width: 980px; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .topbar h1 { font-size: 20px; }
+  .topbar .actions { display: flex; gap: 10px; }
+  .ghost-btn {
+    padding: 8px 16px; font-size: 13px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .ghost-btn:hover { border-color: var(--accent); }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+  }
+  .panel h2 { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; font-weight: 600; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  textarea, select, input[type="text"], input[type="password"], input[type="number"] {
+    width: 100%; padding: 11px 12px; font-size: 14px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    outline: none; resize: vertical; transition: border .15s;
+  }
+  textarea { min-height: 110px; font-family: inherit; }
+  textarea:focus, select:focus, input:focus { border-color: var(--accent); }
+  select { cursor: pointer; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  .generate-btn {
+    width: 100%; padding: 13px; margin-top: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; font-size: 15px;
+  }
+  .generate-btn:hover { filter: brightness(1.08); }
+  .generate-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* 结果区 */
+  .result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .result-head h2 { margin-bottom: 0; }
+  .status { font-size: 13px; color: var(--text-dim); }
+  .status.loading { color: var(--accent-2); }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--ok); }
+
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .image-card {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .image-card img { width: 100%; display: block; }
+  .image-card .bar { display: flex; gap: 8px; padding: 10px; }
+  .image-card .bar button {
+    flex: 1; padding: 6px 10px; font-size: 12px;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  .image-card .bar button:hover { border-color: var(--accent); }
+
+  .empty {
+    color: var(--text-dim); text-align: center; padding: 60px 20px;
+    font-size: 14px; border: 1px dashed var(--border); border-radius: 12px;
+  }
+
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff; border-radius: 50%;
+    display: inline-block; animation: spin .8s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+  .err-msg { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 18px; }
+</style>
+</head>
+<body>
+
+  <!-- 登录界面 -->
+  <div id="login-screen">
+    <h1>🎨 AI 图片生成</h1>
+    <p>输入 API 密钥即可开始使用</p>
+    <label for="key-input">API 密钥（Bearer Token）</label>
+    <input type="password" id="key-input" placeholder="sk-..." autocomplete="off">
+    <label for="host-input" style="margin-top:16px;">API 主机地址</label>
+    <input type="text" id="host-input" placeholder="https://api.apib.ai" autocomplete="off">
+    <button class="primary-btn" id="login-btn">登录</button>
+    <div class="err-msg" id="login-err"></div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="app-screen">
+    <div class="topbar">
+      <h1>🎨 AI 图片生成</h1>
+      <div class="actions">
+        <button class="ghost-btn" id="settings-btn">⚙ 设置</button>
+        <button class="ghost-btn" id="logout-btn">退出登录</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <!-- 左侧：参数 -->
+      <div class="panel">
+        <h2>提示词</h2>
+        <div class="field">
+          <textarea id="prompt-input" placeholder="描述你想生成的图片，例如：赛博朋克风格的城市夜景，霓虹灯闪烁"></textarea>
+        </div>
+
+        <h2>参数</h2>
+        <div class="field">
+          <label>模型</label>
+          <select id="model-select">
+            <option value="gemini-3.1-flash-image-preview" selected>Nano Banana 2</option>
+            <option value="gpt-image-2-official">GPT-Image-2</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>尺寸</label>
+            <select id="size-select"></select>
+          </div>
+          <div class="field">
+            <label>分辨率</label>
+            <select id="res-select"></select>
+          </div>
+        </div>
+        <div class="row2" id="extra-row" style="display:none;">
+          <div class="field">
+            <label>质量</label>
+            <select id="quality-select">
+              <option value="auto">auto 自动</option>
+              <option value="low" selected>low 快速</option>
+              <option value="medium">medium 平衡</option>
+              <option value="high">high 最高精度</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>数量</label>
+            <input type="number" id="n-input" value="1" min="1" max="4">
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generate-btn">✨ 生成图片</button>
+        <div class="err-msg" id="gen-err"></div>
+      </div>
+
+      <!-- 右侧：结果 -->
+      <div class="panel">
+        <div class="result-head">
+          <h2>生成结果</h2>
+          <span class="status" id="status"></span>
+        </div>
+        <div class="image-grid" id="image-grid">
+          <div class="empty">输入提示词，点击「生成图片」</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var DEFAULT_HOST = "https://api.apib.ai";
+
+  // ---------- 状态持久化 ----------
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem("img_gen_state") || "{}"); }
+    catch (e) { return {}; }
+  }
+  function saveState(s) { localStorage.setItem("img_gen_state", JSON.stringify(s)); }
+
+  var state = loadState();
+  if (!state.host) state.host = DEFAULT_HOST;
+
+  // ---------- 模型配置 ----------
+  var MODELS = {
+    "gemini-3.1-flash-image-preview": {
+      name: "Nano Banana 2",
+      sizes: ["1:1","16:9","9:16","3:2","2:3","4:3","3:4","5:4","4:5","21:9","1:4","4:1","1:8","8:1"],
+      resolutions: ["0.5K","1K","2K","4K"],
+      defaultRes: "2K",
+      hasQuality: false,
+      nMax: 1
+    },
+    "gpt-image-2-official": {
+      name: "GPT-Image-2",
+      sizes: ["1:1","3:2","2:3","4:3","3:4","5:4","4:5","16:9","9:16","2:1","1:2","3:1","1:3","21:9","9:21"],
+      resolutions: ["1k","2k","4k"],
+      defaultRes: "2k",
+      hasQuality: true,
+      nMax: 4
+    }
+  };
+
+  function updateParams() {
+    var m = $("model-select").value;
+    var cfg = MODELS[m] || MODELS["gemini-3.1-flash-image-preview"];
+
+    var sizeSel = $("size-select");
+    sizeSel.innerHTML = "";
+    cfg.sizes.forEach(function (s) {
+      var o = document.createElement("option");
+      o.value = s; o.textContent = s;
+      if (s === "1:1") o.selected = true;
+      sizeSel.appendChild(o);
+    });
+
+    var resSel = $("res-select");
+    resSel.innerHTML = "";
+    cfg.resolutions.forEach(function (r) {
+      var o = document.createElement("option");
+      o.value = r; o.textContent = r;
+      if (r === cfg.defaultRes) o.selected = true;
+      resSel.appendChild(o);
+    });
+
+    $("extra-row").style.display = cfg.hasQuality ? "grid" : "none";
+  }
+
+  // ---------- 界面切换 ----------
+  function showLogin() {
+    $("login-screen").style.display = "block";
+    $("app-screen").style.display = "none";
+    $("host-input").value = state.host || DEFAULT_HOST;
+    $("key-input").value = "";
+    $("login-err").textContent = "";
+  }
+  function showApp() {
+    $("login-screen").style.display = "none";
+    $("app-screen").style.display = "block";
+  }
+
+  // ---------- 登录 / 退出 ----------
+  function doLogin() {
+    var key = $("key-input").value.trim();
+    var host = $("host-input").value.trim().replace(/\/+$/, "");
+    var err = $("login-err");
+    if (!key) { err.textContent = "请输入 API 密钥"; return; }
+    if (!host) { err.textContent = "请输入 API 主机地址"; return; }
+    if (!/^https?:\/\//i.test(host)) { err.textContent = "主机地址需以 http:// 或 https:// 开头"; return; }
+    state.key = key;
+    state.host = host;
+    saveState(state);
+    showApp();
+  }
+
+  function doLogout() {
+    delete state.key;
+    saveState(state);
+    showLogin();
+  }
+
+  // ---------- 生成图片 ----------
+  function setStatus(text, cls) {
+    var s = $("status");
+    s.textContent = text;
+    s.className = "status" + (cls ? " " + cls : "");
+  }
+
+  function extractImages(data) {
+    if (!data) return [];
+    var arr = null;
+    if (Array.isArray(data)) arr = data;
+    else if (Array.isArray(data.data)) arr = data.data;
+    else if (Array.isArray(data.images)) arr = data.images;
+    else if (Array.isArray(data.result)) arr = data.result;
+    else if (Array.isArray(data.results)) arr = data.results;
+    else if (data.url || data.b64_json || data.image) arr = [data];
+    if (!arr) return [];
+
+    var out = [];
+    arr.forEach(function (it) {
+      if (it == null) return;
+      if (typeof it === "string") { out.push({ url: it }); return; }
+      if (typeof it !== "object") return;
+      var url = it.url || it.image || it.image_url || it.output_url ||
+        (Array.isArray(it.images) && typeof it.images[0] === "string" ? it.images[0] : null);
+      var b64 = it.b64_json || it.b64 || it.base64 || it.image_base64 ||
+        (it.data && it.data.b64_json) || (it.data && it.data.b64);
+      if (url) out.push({ url: url });
+      else if (b64) out.push({ b64_json: b64 });
+    });
+    return out;
+  }
+
+  function renderRaw(data) {
+    var grid = $("image-grid");
+    grid.innerHTML = "";
+    var pre = document.createElement("pre");
+    pre.style.cssText = "white-space:pre-wrap;word-break:break-all;font-size:12px;color:var(--text-dim);max-height:420px;overflow:auto;";
+    pre.textContent = "API 已返回数据，但未识别出图片字段。原始返回内容：\n\n" + JSON.stringify(data, null, 2);
+    grid.appendChild(pre);
+  }
+
+  function renderImages(items) {
+    var grid = $("image-grid");
+    grid.innerHTML = "";
+    if (!items || !items.length) {
+      grid.innerHTML = '<div class="empty">没有返回图片</div>';
+      return;
+    }
+    items.forEach(function (it) {
+      var src = it.url || (it.b64_json ? "data:image/png;base64," + it.b64_json : null);
+      var card = document.createElement("div");
+      card.className = "image-card";
+      if (src) {
+        var img = document.createElement("img");
+        img.src = src;
+        card.appendChild(img);
+      } else {
+        var none = document.createElement("div");
+        none.className = "empty";
+        none.textContent = "（无可用图片数据）";
+        card.appendChild(none);
+      }
+      var bar = document.createElement("div");
+      bar.className = "bar";
+      var dl = document.createElement("button");
+      dl.textContent = "⬇ 下载";
+      dl.onclick = function () { download(src); };
+      var open = document.createElement("button");
+      open.textContent = "↗ 新窗口";
+      open.onclick = function () { window.open(src, "_blank"); };
+      bar.appendChild(dl);
+      bar.appendChild(open);
+      card.appendChild(bar);
+      grid.appendChild(card);
+    });
+  }
+
+  function download(src) {
+    if (!src) return;
+    if (src.indexOf("http") === 0) {
+      var a = document.createElement("a");
+      a.href = src; a.target = "_blank"; a.rel = "noopener"; a.download = "";
+      document.body.appendChild(a); a.click(); a.remove();
+    } else {
+      var a = document.createElement("a");
+      a.href = src; a.download = "image.png";
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function findTaskId(data) {
+    if (!data) return null;
+    var d = data.data;
+    if (Array.isArray(d) && d[0] && d[0].task_id) return d[0].task_id;
+    if (d && typeof d === "object" && d.task_id) return d.task_id;
+    if (data.task_id) return data.task_id;
+    return null;
+  }
+
+  function findStatus(data) {
+    if (!data) return null;
+    function pick(o) {
+      if (!o || typeof o !== "object") return null;
+      return o.status || o.state || o.task_status || null;
+    }
+    var s = pick(data);
+    if (s) return s;
+    var d = data.data;
+    if (Array.isArray(d) && d[0]) return pick(d[0]);
+    if (d && typeof d === "object") return pick(d) || pick(d.result) || pick(d.task);
+    return null;
+  }
+
+  function collectImageStrings(data, out) {
+    if (data == null) return out;
+    if (typeof data === "string") {
+      if (/^data:image\//i.test(data) || /^https?:\/\/\S+/i.test(data)) out.push(data);
+      return out;
+    }
+    if (Array.isArray(data)) { data.forEach(function (x) { collectImageStrings(x, out); }); return out; }
+    if (typeof data === "object") {
+      Object.keys(data).forEach(function (k) { collectImageStrings(data[k], out); });
+    }
+    return out;
+  }
+
+  function extractTaskImages(data) {
+    var known = [];
+    (function scan(o) {
+      if (o == null) return;
+      if (Array.isArray(o)) { o.forEach(scan); return; }
+      if (typeof o === "object") {
+        ["image_url", "output_url", "result_url", "url", "image", "image_urls", "urls", "images"].forEach(function (k) {
+          var v = o[k];
+          if (typeof v === "string") known.push(v);
+          else if (Array.isArray(v)) v.forEach(function (x) {
+            if (typeof x === "string") known.push(x);
+            else if (x && typeof x === "object") { if (x.url) known.push(x.url); if (x.image_url) known.push(x.image_url); }
+          });
+        });
+        Object.keys(o).forEach(function (k) { if (o[k] && typeof o[k] === "object") scan(o[k]); });
+      }
+    })(data);
+
+    var list = known.length ? known : collectImageStrings(data, []);
+    var seen = {}, out = [];
+    list.forEach(function (s) {
+      if (seen[s]) return;
+      seen[s] = 1;
+      if (/^data:image\//i.test(s)) out.push({ b64_json: s.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, "") });
+      else out.push({ url: s });
+    });
+    return out;
+  }
+
+  async function pollTask(taskId) {
+    var url = state.host + "/v1/tasks/" + taskId;
+    var maxTries = 120, interval = 3000;
+    for (var i = 1; i <= maxTries; i++) {
+      await sleep(interval);
+      var res = await fetch(url, { headers: { "Authorization": "Bearer " + state.key } });
+      var text = await res.text();
+      var data; try { data = JSON.parse(text); } catch (e) { data = null; }
+      if (!res.ok) {
+        var msg = (data && (data.error && (data.error.message || data.error) || data.message)) || ("HTTP " + res.status);
+        throw new Error(msg);
+      }
+      var status = (findStatus(data) || "").toLowerCase();
+      if (status === "completed" || status === "succeeded" || status === "success" || status === "finished" || status === "done") {
+        var items = extractTaskImages(data);
+        if (items.length === 0) {
+          renderRaw(data);
+          setStatus("任务完成，但未识别出图片", "error");
+          $("gen-err").textContent = "任务已完成，但未找到图片字段。请把右侧原始返回内容发给我修正。";
+          return;
+        }
+        renderImages(items);
+        setStatus("完成 · " + items.length + " 张", "ok");
+        return;
+      }
+      if (status === "failed" || status === "error" || status === "cancelled" || status === "canceled") {
+        var fm = (data && data.error && (data.error.message || data.error)) || ("任务状态：" + status);
+        throw new Error("任务失败：" + fm);
+      }
+      setStatus("生成中… " + (status || "处理中") + "（" + i + "/" + maxTries + "）", "loading");
+    }
+    throw new Error("任务超时（等待过久，可稍后重新生成）");
+  }
+
+  async function generate() {
+    var prompt = $("prompt-input").value.trim();
+    var err = $("gen-err");
+    err.textContent = "";
+    if (!prompt) { err.textContent = "请输入提示词"; return; }
+    if (!state.key) { showLogin(); return; }
+
+    var btn = $("generate-btn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>生成中…';
+    setStatus("提交任务…", "loading");
+
+    var model = $("model-select").value;
+    var cfg = MODELS[model] || MODELS["gemini-3.1-flash-image-preview"];
+    var payload = {
+      model: model,
+      prompt: prompt,
+      size: $("size-select").value,
+      resolution: $("res-select").value,
+      n: 1
+    };
+    if (cfg.hasQuality) {
+      payload.quality = $("quality-select").value;
+      payload.n = parseInt($("n-input").value, 10) || 1;
+    }
+
+    var url = state.host + "/v1/images/generations";
+    try {
+      var res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + state.key,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      var text = await res.text();
+      var data; try { data = JSON.parse(text); } catch (e) { data = null; }
+
+      if (!res.ok) {
+        var msg = (data && (data.error && (data.error.message || data.error) || data.message)) || ("HTTP " + res.status);
+        throw new Error(msg);
+      }
+
+      var taskId = findTaskId(data);
+      if (!taskId) {
+        renderRaw(data);
+        setStatus("未获取到任务 ID", "error");
+        err.textContent = "提交成功但未找到 task_id，请把右侧原始返回内容发给我。";
+        return;
+      }
+
+      await pollTask(taskId);
+    } catch (e) {
+      var m = e.message || String(e);
+      if (m === "Failed to fetch" || /NetworkError|fetch/i.test(m)) {
+        m = "请求失败，可能是网络问题，或该 API 不允许浏览器跨域访问（CORS）。";
+      }
+      setStatus("出错", "error");
+      err.textContent = "生成失败：" + m;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "✨ 生成图片";
+    }
+  }
+
+  // ---------- 绑定事件 ----------
+  $("login-btn").onclick = doLogin;
+  $("key-input").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
+  $("host-input").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
+  $("logout-btn").onclick = doLogout;
+  $("generate-btn").onclick = generate;
+  $("model-select").addEventListener("change", updateParams);
+  $("quality-select").addEventListener("change", function (e) {
+    var v = e.target.value;
+    if (v === "high") {
+      var ok = confirm("⚠️ 警告：最高精度（high）生成成本较高、耗时更长（4K+high 可能超过 120 秒），请慎重使用。\n\n确定要使用最高精度吗？");
+      if (!ok) e.target.value = "medium";
+    } else if (v === "medium") {
+      var ok2 = confirm("⚠️ 提示：平衡质量（medium）花费高于 low，请确认后使用。\n\n确定使用 medium 吗？");
+      if (!ok2) e.target.value = "low";
+    }
+  });
+  $("prompt-input").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) generate();
+  });
+
+  $("settings-btn").onclick = function () {
+    if (!state.key) { showLogin(); return; }
+    var k = prompt("新的 API 密钥（留空保持不变）：", state.key);
+    if (k === null) return;
+    if (k.trim()) state.key = k.trim();
+    var h = prompt("API 主机地址：", state.host);
+    if (h === null) return;
+    if (h.trim()) state.host = h.trim().replace(/\/+$/, "");
+    saveState(state);
+    alert("设置已保存");
+  };
+
+  // ---------- 初始化 ----------
+  updateParams();
+  if (state.key) { showApp(); } else { showLogin(); }
+})();
+</script>
+</body>
+</html>
